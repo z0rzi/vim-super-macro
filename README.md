@@ -1,1 +1,1 @@
-# vim-super-macro
+# vim-adaptive-indent
