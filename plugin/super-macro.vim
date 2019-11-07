@@ -233,10 +233,30 @@ function! s:superMacro()
 
 endfunction
 
-nnoremap <silent> qs :call <SID>superMacro()<CR>
-nnoremap <silent> qc :call <SID>superMacro()<CR>ciw
-nnoremap <silent> qq :call <SID>toggleMark(getpos('.')[1:2])<CR>
-nnoremap <silent> qd :call <SID>eraseAllMarks(0)<CR>
-nnoremap <silent> q/ :call <SID>toggleSearchMark()<CR>
-nnoremap <silent> qn :call <SID>moveToNextMark(0)<CR>
-nnoremap <silent> qp :call <SID>moveToPrevMark()<CR>
+function s:selectionToMarks()
+    let begPos = getpos("'<")[1:2]
+    let endPos = getpos("'>")[1:2]
+    
+    if begPos[0] > endPos[0]
+        let [ begPos[0], endPos[0] ] = [ endPos[0], begPos[0] ]
+    endif
+    if begPos[1] > endPos[1]
+        let [ begPos[1], endPos[1] ] = [ endPos[1], begPos[1] ]
+    endif
+
+    let i = begPos[0]
+    while i <= endPos[0]
+        
+        call s:toggleMark( [ i, begPos[1] ] )
+        let i += 1
+    endwhile
+endfunction
+
+nnoremap <silent> qs :<C-u>call <SID>superMacro()<CR>
+nnoremap <silent> qc :<C-u>call <SID>superMacro()<CR>ciw
+nnoremap <silent> qq :<C-u>call <SID>toggleMark(getpos('.')[1:2])<CR>
+nnoremap <silent> qd :<C-u>call <SID>eraseAllMarks(0)<CR>
+nnoremap <silent> q/ :<C-u>call <SID>toggleSearchMark()<CR>
+nnoremap <silent> qn :<C-u>call <SID>moveToNextMark(0)<CR>
+nnoremap <silent> qp :<C-u>call <SID>moveToPrevMark()<CR>
+vnoremap <silent> qq :<C-u>call <SID>selectionToMarks()<CR>
