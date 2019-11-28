@@ -30,7 +30,7 @@ function! s:comparePositions(pos1, pos2)
     return 0
 endfunction
 
-function! s:findAvailableMark()
+function! superMacro#findAvailableMark()
     let i=0
     let mark=''
     while i < len(g:superMacroUsableMarks) && mark == ''
@@ -49,7 +49,7 @@ function! s:findAvailableMark()
     return mark
 endfunction
 
-function! s:getMarkPos(key)
+function! superMacro#getMarkPos(key)
     if ! has_key(g:superMacroMarks, a:key)
         return 0
     endif
@@ -61,10 +61,10 @@ function! s:getMarkPos(key)
     endif
 endfunction
 
-function! s:setMarkPos(pos)
+function! superMacro#setMarkPos(pos)
     if g:superMacroUseMarks == 1
 
-        let mark = s:findAvailableMark()
+        let mark = superMacro#findAvailableMark()
 
         if mark == ''
             return
@@ -82,7 +82,7 @@ function! s:setMarkPos(pos)
     endif
 endfunction
 
-function! s:delMarkPos(key)
+function! superMacro#delMarkPos(key)
 
     if g:superMacroUseMarks == 1
         exe 'delmarks ' . g:superMacroMarks[a:key]
@@ -94,29 +94,29 @@ function! s:delMarkPos(key)
 endfunction
 
 " To turn on/off a mark
-function! s:toggleMark(pos)
+function! superMacro#toggleMark(pos)
 
     if reg_recording() != ''
         return
     endif
 
     if g:superMacroOldMarksSaved == 1
-        call s:eraseAllMarks(1)
+        call superMacro#eraseAllMarks(1)
     endif
 
     for k in keys(g:superMacroMarks)
-        if s:getMarkPos(k) == a:pos
-            call s:delMarkPos(k)
+        if superMacro#getMarkPos(k) == a:pos
+            call superMacro#delMarkPos(k)
             return
         endif
     endfor
 
-    call s:setMarkPos(a:pos)
+    call superMacro#setMarkPos(a:pos)
 
 endfunction
 
 " To toggle marks on the current search pattern
-function! s:toggleSearchMark()
+function! superMacro#toggleSearchMark()
 
     let g:curpos = getpos('.')
 
@@ -127,7 +127,7 @@ function! s:toggleSearchMark()
         if pos[0] == 0
             break
         endif
-        call s:toggleMark(getpos('.')[1:2])
+        call superMacro#toggleMark(getpos('.')[1:2])
     endwhile
 
     call setpos('.', g:curpos)
@@ -135,21 +135,21 @@ function! s:toggleSearchMark()
 endfunction
 
 " To delete all marks (keeps a save if not 'truely')
-function! s:eraseAllMarks(truely)
+function! superMacro#eraseAllMarks(truely)
 
     for key in keys(g:superMacroMarks)
-        call s:delMarkPos(key)
+        call superMacro#delMarkPos(key)
     endfor
 
 endfunction
 
 " To move the cursor to the next mark
-function! s:moveToNextMark(inclusive)
+function! superMacro#moveToNextMark(inclusive)
     let minPos = []
 
     let curPos = getpos('.')[1:2]
     for key in keys(g:superMacroMarks)
-        let pos = s:getMarkPos(key)
+        let pos = superMacro#getMarkPos(key)
         
         if a:inclusive > 0
             let test = s:comparePositions(curPos, pos) >= 0
@@ -172,12 +172,12 @@ function! s:moveToNextMark(inclusive)
 endfunction
 
 " To move cursor to the previous mark
-function! s:moveToPrevMark()
+function! superMacro#moveToPrevMark()
     let maxPos = []
 
     let curPos = getpos('.')[1:2]
     for key in keys(g:superMacroMarks)
-        let pos = s:getMarkPos(key)
+        let pos = superMacro#getMarkPos(key)
         
         if s:comparePositions(curPos, pos) < 0
             if len(maxPos) == 0 || s:comparePositions(pos, maxPos) < 0
@@ -194,46 +194,47 @@ function! s:moveToPrevMark()
 endfunction
 
 " To start the macro
-function! s:startSuperMacro()
-    let s = s:moveToNextMark(1)
+function! superMacro#startsuperMacro()
+    let s = superMacro#moveToNextMark(1)
     if s == 0
-        let s = s:moveToPrevMark()
+        let s = superMacro#moveToPrevMark()
     endif
     if s == 0
         return
     else
-        call s:toggleMark(getpos('.')[1:2])
+        call superMacro#toggleMark(getpos('.')[1:2])
     endif
     norm!qs
 endfunction
 
 " To end the macro and apply it to all marks
-function! s:stopSuperMacro()
+function! superMacro#stopsuperMacro(beg, end)
     norm!q
     
     let @s = substitute(@s, 'qs$', '', '')
+    let @s = a:beg . @s . a:end
 
     for key in keys(g:superMacroMarks)
-        call setpos('.', [0] + s:getMarkPos(key) + [0])
+        call setpos('.', [0] + superMacro#getMarkPos(key) + [0])
         norm!@s
     endfor
     
-    call s:eraseAllMarks(0)
+    call superMacro#eraseAllMarks(0)
 
 endfunction
 
 " Takes care of starting or stopping macro
-function! s:superMacro()
+function! superMacro#superMacro()
 
     if reg_recording() == ''
-        call s:startSuperMacro()
+        call superMacro#startsuperMacro()
     else
-        call s:stopSuperMacro()
+        call superMacro#stopsuperMacro('', '')
     endif
 
 endfunction
 
-function s:selectionToMarks()
+function superMacro#selectionToMarks()
     let begPos = getpos("'<")[1:2]
     let endPos = getpos("'>")[1:2]
     
@@ -247,16 +248,25 @@ function s:selectionToMarks()
     let i = begPos[0]
     while i <= endPos[0]
         
-        call s:toggleMark( [ i, begPos[1] ] )
+        call superMacro#toggleMark( [ i, begPos[1] ] )
         let i += 1
     endwhile
 endfunction
 
-nnoremap <silent> qs :<C-u>call <SID>superMacro()<CR>
-nnoremap <silent> qc :<C-u>call <SID>superMacro()<CR>ciw
-nnoremap <silent> qq :<C-u>call <SID>toggleMark(getpos('.')[1:2])<CR>
-nnoremap <silent> qd :<C-u>call <SID>eraseAllMarks(0)<CR>
-nnoremap <silent> q/ :<C-u>call <SID>toggleSearchMark()<CR>
-nnoremap <silent> qn :<C-u>call <SID>moveToNextMark(0)<CR>
-nnoremap <silent> qp :<C-u>call <SID>moveToPrevMark()<CR>
-vnoremap <silent> qq :<C-u>call <SID>selectionToMarks()<CR>
+function superMacro#superMacroInsert()
+    augroup SuperMacro
+    autocmd InsertLeave * call superMacro#endSuperMacroInsert()
+    augroup END
+
+    call superMacro#superMacro()
+    startinsert
+endfunction
+
+function superMacro#endSuperMacroInsert()
+    autocmd! SuperMacro InsertLeave *
+    
+    let curPos = getpos('.')
+    stopinsert
+    call superMacro#stopsuperMacro('i', '')
+    call setpos('.', curPos)
+endfunction
