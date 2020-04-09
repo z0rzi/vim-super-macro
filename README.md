@@ -1,1 +1,3 @@
-# vim-adaptive-indent
+# Vim Super Macro
+
+Create Macros seamlessly!
