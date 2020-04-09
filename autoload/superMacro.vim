@@ -4,7 +4,7 @@ if ! exists("g:superMacroMarks")
 endif
 
 let g:superMacroOldMarksSaved = 0
-let g:superMacroUsleMarks = "ertyuiopdfghjklcvbnm"
+let g:superMacroUsableMarks = "ertyuiopdfghjklcvbnm"
 
 let g:superMacroUseMarks = 0
 
@@ -28,6 +28,30 @@ function! s:comparePositions(pos1, pos2)
         return -1
     endif
     return 0
+endfunction
+
+function! superMacro#onMatch(position, searchPattern)
+    let curpos = getpos('.')
+    call setpos('.', [0] + a:position + [0])
+
+    let pos = searchpos(a:searchPattern, 'ec')
+
+    if pos == [0,0] || s:comparePositions(a:position, pos) < 0
+        call setpos('.', curpos)
+        return 0
+    endif
+
+
+    let pos = searchpos(a:searchPattern, 'bnc')
+
+    if pos == [0,0] || s:comparePositions(pos, a:position) < 0
+        call setpos('.', curpos)
+        return 0
+    endif
+
+    call setpos('.', curpos)
+    return 1
+
 endfunction
 
 function! superMacro#findAvailableMark()
@@ -71,12 +95,12 @@ function! superMacro#setMarkPos(pos)
         endif
 
         call setpos("'" . mark, [0] + a:pos + [0])
-        let id = matchadd('MacroMark', '\%''' . mark)
+        let id = matchadd('MacroMark', '\%''' . mark . '\(\%#\)\@!')
         call extend(g:superMacroMarks, {id : mark})
 
     else
 
-        let id = matchadd('MacroMark', '\%' . a:pos[0] . 'l\%' . a:pos[1] . 'c')
+        let id = matchadd('MacroMark', '\%' . a:pos[0] . 'l\%' . a:pos[1] . 'c' . '\(\%#\)\@!')
         call extend(g:superMacroMarks, {id : a:pos})
 
     endif
@@ -94,8 +118,8 @@ function! superMacro#delMarkPos(key)
 endfunction
 
 " To turn on/off a mark
-function! superMacro#toggleMark(pos)
-
+" Flag to force on (1) or of (0). -1 to toggle
+function! superMacro#toggleMark(pos, flag)
     if reg_recording() != ''
         return
     endif
@@ -106,12 +130,17 @@ function! superMacro#toggleMark(pos)
 
     for k in keys(g:superMacroMarks)
         if superMacro#getMarkPos(k) == a:pos
-            call superMacro#delMarkPos(k)
+            if a:flag != 1
+                call superMacro#delMarkPos(k)
+            endif
             return
         endif
     endfor
 
-    call superMacro#setMarkPos(a:pos)
+    if a:flag != 0
+        call superMacro#setMarkPos(a:pos)
+    endif
+
 
 endfunction
 
@@ -127,7 +156,7 @@ function! superMacro#toggleSearchMark()
         if pos[0] == 0
             break
         endif
-        call superMacro#toggleMark(getpos('.')[1:2])
+        call superMacro#toggleMark(getpos('.')[1:2], -1 )
     endwhile
 
     call setpos('.', g:curpos)
@@ -202,7 +231,7 @@ function! superMacro#startsuperMacro()
     if s == 0
         return
     else
-        call superMacro#toggleMark(getpos('.')[1:2])
+        call superMacro#toggleMark(getpos('.')[1:2], -1)
     endif
     norm!qs
 endfunction
@@ -234,6 +263,14 @@ function! superMacro#superMacro()
 
 endfunction
 
+" Marks current word if cursor over search pattern, and mark next search
+function! superMacro#markSearch()
+    if superMacro#onMatch(getpos('.')[1:2], @/)
+        call superMacro#toggleMark(searchpos(@/, 'bcn'), 1)
+    endif
+    call superMacro#toggleMark(searchpos(@/), 1)
+endfunction
+
 function superMacro#selectionToMarks()
     let begPos = getpos("'<")[1:2]
     let endPos = getpos("'>")[1:2]
@@ -248,22 +285,105 @@ function superMacro#selectionToMarks()
     let i = begPos[0]
     while i <= endPos[0]
         
-        call superMacro#toggleMark( [ i, begPos[1] ] )
+        call superMacro#toggleMark( [ i, begPos[1] ] , -1 )
         let i += 1
     endwhile
 endfunction
 
-function superMacro#superMacroInsert()
-    augroup SuperMacro
-    autocmd InsertLeave * call superMacro#endSuperMacroInsert()
-    augroup END
+function! s:listenOneChar()
+    let l:number = 1
+    let l:string = ""
 
+    while l:number > 0
+        let l:string .= nr2char(getchar())
+        let l:number -= 1
+    endwhile
+
+    return l:string
+endfunction
+
+function! superMacro#enterInteractiveMode()
+    call search(@/, 'c')
+
+    let id = matchadd('Cursor', '\%#')
+
+    redraw!
+    while 1
+        let c = s:listenOneChar()
+
+        if c == 's'
+            call superMacro#toggleMark(getpos('.')[1:2], -1)
+            call search(@/)
+        elseif c == 'S' || c=='w'
+            call superMacro#toggleMark(getpos('.')[1:2], -1)
+            call search(@/, 'b')
+        elseif c == 'd'
+            call search(@/)
+        elseif c == 'a'
+            call search(@/, 'b')
+        elseif c == 'c'
+            let c = s:listenOneChar()
+            call superMacro#toggleMark(getpos('.')[1:2], 1)
+            exe"norm!c".c
+            norm!l
+            startinsert
+            call superMacro#stopSuperMacroOn('InsertLeave', 'c'.c)
+            call superMacro#startsuperMacro()
+            break
+        elseif c == 'C'
+            call superMacro#toggleMark(getpos('.')[1:2], 1)
+
+            exe"norm!D"
+            startinsert
+            exe"norm!\<RIGHT>"
+
+            call superMacro#stopSuperMacroOn('InsertLeave', 'C')
+            call superMacro#startsuperMacro()
+            break
+        elseif c == 'i'
+            call superMacro#stopSuperMacroOn('InsertLeave', 'i')
+            call superMacro#toggleMark(getpos('.')[1:2], 1)
+            call superMacro#startsuperMacro()
+            startinsert
+            break
+        elseif c == 'a'
+            call superMacro#stopSuperMacroOn('InsertLeave', 'a')
+            call superMacro#toggleMark(getpos('.')[1:2], 1)
+            call superMacro#startsuperMacro()
+            norm!l
+            startinsert
+            break
+        else
+            break
+        endif
+        redraw!
+    endwhile
+
+    call matchdelete(id)
+
+endfunction
+
+function superMacro#superMacroInsert()
+    call superMacro#stopSuperMacroOn('InsertLeave', 'i')
     call superMacro#superMacro()
     startinsert
 endfunction
 
+function! superMacro#stopSuperMacroOn(event, macroPrepend)
+    exe "augroup SuperMacro | autocmd ".a:event." <buffer> call superMacro#endSuperMacroEvent('".a:macroPrepend."') | augroup END"
+endfunction
+
+function! superMacro#endSuperMacroEvent(macroPrepend)
+    autocmd! SuperMacro
+
+    let curPos = getpos('.')
+    stopinsert
+    call superMacro#stopsuperMacro(a:macroPrepend, '')
+    call setpos('.', curPos)
+endfunction
+
 function superMacro#endSuperMacroInsert()
-    autocmd! SuperMacro InsertLeave *
+    autocmd! SuperMacro
     
     let curPos = getpos('.')
     stopinsert
